@@ -23,8 +23,8 @@ megabyte on disk. Git fetches a file lazily the first time a command needs it.
 Two consequences shape the code:
 
 - **Analysis must not read contents.** `git log --name-only` is cheap, but rename detection compares contents, which
-  would silently download files. Every history query therefore uses `--no-renames`, and tests assert that analysing a
-  repository leaves the same objects missing.
+  would silently download files. Every history query therefore uses `--no-renames`, so that analysing a repository
+  leaves the same objects missing as before.
 - **Lazy fetching is slow one object at a time.** Blaming a file with many versions would make one request per old
   version. `git_history.fetch_missing` fetches a known set of objects in one request, and `prefetch_file_history` uses
   it to download the recent versions of the file you ask about before blaming it.
@@ -92,9 +92,8 @@ who authored a specific commit (`profiles.py`). Names are never guessed into lin
 load (the failed attempt wakes a sleeping GPU, so the retry usually works), and warms the model up in the background
 when a repository opens. Warm-up and real requests must use the same context size, or Ollama reloads the model.
 
-## Testing approach
+## Verification
 
-Tests use real repositories created with real `git`, including partial clones from a local `file://` remote, so
-behaviour that depends on git (lazy fetching, blame, merge counts) is exercised for real. The model and GitHub are
-stubbed. Whole-screen tests run the app through Streamlit's `AppTest`. Escaping, redaction and link validation have
-dedicated tests with hostile input, and the theme has contrast-ratio tests.
+The repository does not include an automated test suite. Continuous integration compiles every module, imports every
+module and renders the app headlessly through Streamlit's `AppTest`, on Windows and Linux. Behaviour that depends on
+git (lazy fetching, blame, merge counts) is best checked by running the app against a real public repository.

@@ -23,7 +23,7 @@ It also turns a repository's history into three more tools:
 - [Configuration](#configuration)
 - [Privacy and security](#privacy-and-security)
 - [Project layout](#project-layout)
-- [Development and tests](#development-and-tests)
+- [Development and checks](#development-and-checks)
 - [Troubleshooting](#troubleshooting)
 - [Limitations](#limitations)
 - [Contributing](#contributing)
@@ -194,27 +194,23 @@ gitosaurus/
   views.py              the Onboarding, Tech debt and Changelog screens
   viewer/               custom Streamlit component: file tree and code viewer (plain HTML and JavaScript)
   assets/               favicon
-tests/                  the test suite
 docs/                   architecture notes
 ```
 
-## Development and tests
+## Development and checks
+
+This repository does not include an automated test suite (the `tests/` folder is listed in `.gitignore`). Continuous
+integration instead runs three checks on Windows and Linux, which you can run yourself:
 
 ```bash
-pip install -r requirements-dev.txt
-python -m pytest
+python -m compileall -q app.py gitosaurus          # every module compiles
+python -c "import pkgutil, importlib, gitosaurus; [importlib.import_module(m.name) for m in pkgutil.walk_packages(gitosaurus.__path__, 'gitosaurus.')]"
+python -c "from streamlit.testing.v1 import AppTest; at = AppTest.from_file('app.py', default_timeout=60).run(); assert not at.exception, at.exception"
 ```
 
-The full suite takes a couple of minutes. It does not need Ollama or network access: the model and GitHub are
-stubbed, and repositories are built on the fly with real `git` commands, including partial clones from a local
-`file://` remote. Git must be on your `PATH`.
-
-Useful commands:
-
-```bash
-python -m pytest tests/test_ui.py -q          # one file
-python -m pytest -k redact -q                 # by name
-```
+The last command starts the app headlessly and fails if rendering raises. None of the checks need Ollama or network
+access. Beyond them, the way to verify a change is to run the app (`streamlit run app.py`) and try it on a real
+repository.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, conventions and a few things that are easy to get wrong
 (Streamlit strips inline SVG, and does not reload imported modules).

@@ -29,4 +29,10 @@ First public release.
   `GITOSAURUS_KEEP_ALIVE`, and an optional `GITHUB_TOKEN` or `GH_TOKEN`.
 - Automatic retry of failed model loads and background warm-up of the model.
 - Halloween colour theme with SVG artwork.
-- A test suite covering the analysis, the screens, escaping, redaction and the cloning logic.
+- Continuous integration on Windows and Linux that compiles every module, imports them all and renders the app
+  headlessly.
+
+### Fixed
+
+- Opening a repository no longer fails when Windows briefly locks the freshly cloned folder; the move is retried and,
+  if necessary, done as a copy, and a failure now names its cause.

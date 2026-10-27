@@ -8,9 +8,9 @@
 
 ## How it was checked
 
-- [ ] `python -m pytest` passes
-- [ ] A new or updated test covers the change (for a bug fix: it fails without the fix)
-- [ ] I tried it in the running app where the change is visible, and restarted the server after changing modules
+- [ ] The three checks in CONTRIBUTING.md pass (compile, import, render)
+- [ ] I tried it in the running app on a real repository, and restarted the server after changing modules
+- [ ] For a changed heuristic: I tried one case that should be flagged and one that must not be
 
 ## Checklist
 
