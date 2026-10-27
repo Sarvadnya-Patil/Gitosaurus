@@ -1,5 +1,6 @@
 """Opening a public GitHub repository (history only, no file contents) and browsing its files."""
 import json
+import logging
 import os
 import re
 import shutil
@@ -169,6 +170,42 @@ def _probe_with_git(owner: str, name: str) -> dict:
     return {}
 
 
+log = logging.getLogger(__name__)
+
+MOVE_ATTEMPTS = 6
+MOVE_WAIT_S = 0.4
+
+
+def _describe(error: OSError) -> str:
+    return f"{type(error).__name__}: {error.strerror or error}"[:160]
+
+
+def _move_into_place(tmp: Path, dest: Path) -> None:
+    """Move a finished clone from its temporary folder to its final name.
+
+    On Windows this rename can fail for a moment, because antivirus or the search indexer still holds a handle on
+    the many small files git has just written. It succeeds a fraction of a second later, so retry with a growing
+    pause. If it never works, copy the folder instead, which only needs to read the source.
+    """
+    last: OSError | None = None
+    for attempt in range(MOVE_ATTEMPTS):
+        try:
+            tmp.rename(dest)
+            return
+        except OSError as e:
+            if _ready(dest):          # another process finished first; its copy is as good as ours
+                return
+            last = e
+            log.warning("could not move %s into place (attempt %d of %d): %s", tmp.name, attempt + 1, MOVE_ATTEMPTS,
+                        _describe(e))
+            time.sleep(MOVE_WAIT_S * (attempt + 1))
+    try:
+        shutil.copytree(tmp, dest)
+    except OSError as e:
+        _rmtree(dest)                  # never leave a half-copied folder that looks like a clone
+        raise RepoError(f"Couldn't finish loading the repository ({_describe(last or e)}). Please try again.") from e
+
+
 def _partial_clone(url: str, dest: Path) -> None:
     """History only: commits and folder listings. No file contents and no working copy.
 
@@ -188,11 +225,7 @@ def _partial_clone(url: str, dest: Path) -> None:
         if proc.returncode != 0:
             err = proc.stderr.strip().splitlines()
             raise RepoError(f"Couldn't load the repository: {err[-1] if err else 'unknown error'}")
-        try:
-            tmp.rename(dest)
-        except OSError:
-            if not _ready(dest):   # not "someone else finished first", so this is a genuine failure
-                raise RepoError("Couldn't finish loading the repository. Please try again.")
+        _move_into_place(tmp, dest)
     except subprocess.TimeoutExpired:
         raise RepoError("Loading the repository took too long. Please try again.") from None
     finally:
