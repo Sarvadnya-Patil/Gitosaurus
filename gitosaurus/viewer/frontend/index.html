@@ -1,0 +1,333 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#140b1f; --bg2:#1f1230; --fg:#f4ecff; --muted:#a99bc2; --line:rgba(196,170,255,.22);
+          --accent:#ff7518; --sel:color-mix(in srgb, var(--accent) 24%, transparent); --hover:rgba(196,170,255,.13); }
+  * { box-sizing: border-box; }
+  /* Same slim themed scrollbars as the rest of the app (this page is an iframe, so it needs its own copy). */
+  :root { color-scheme: dark; }
+  ::-webkit-scrollbar { width: 11px; height: 11px; background: transparent; }
+  ::-webkit-scrollbar-track { background: rgba(167,139,250,.07); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb { min-height: 40px; border: 2px solid transparent; border-radius: 10px; background-clip: padding-box;
+                              background-image: linear-gradient(180deg, #ff7518, #a855f7); }
+  ::-webkit-scrollbar-thumb:hover { background-image: linear-gradient(180deg, #ff9142, #c084fc); }
+  ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+  ::-webkit-scrollbar-corner { background: transparent; }
+  @supports not selector(::-webkit-scrollbar) { * { scrollbar-width: thin; scrollbar-color: #ff7518 rgba(167,139,250,.1); } }
+  html, body { margin:0; height:100%; background:transparent; color:var(--fg);
+               font:14px/1.45 -apple-system,"Segoe UI",system-ui,sans-serif; }
+  #app { display:grid; grid-template-columns: 300px 1fr; height:100%; border:1px solid var(--line);
+         border-radius:8px; overflow:hidden; background:var(--bg); }
+
+  /* ---------- file tree ---------- */
+  #side { background:var(--bg2); border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  #side h2 { margin:0; padding:10px 12px; font-size:13px; font-weight:600; border-bottom:1px solid var(--line);
+             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #q { margin:8px; padding:6px 10px; border:1px solid var(--line); border-radius:6px; background:var(--bg);
+       color:var(--fg); font:inherit; outline:none; }
+  #q:focus { border-color:var(--accent); }
+  #tree { overflow:auto; padding:0 4px 12px; flex:1; min-height:0; }
+  .it { display:flex; align-items:center; gap:6px; height:28px; padding-right:8px; border-radius:6px; cursor:pointer;
+        white-space:nowrap; user-select:none; }
+  .it:hover { background:var(--hover); }
+  .it.active { background:var(--sel); }
+  .it .nm { overflow:hidden; text-overflow:ellipsis; }
+  .it .sub { color:var(--muted); font-size:12px; margin-left:6px; overflow:hidden; text-overflow:ellipsis; }
+  .chev { width:14px; height:14px; flex:none; color:var(--muted); transition:transform .1s; }
+  .chev.open { transform:rotate(90deg); }
+  .spacer { width:14px; flex:none; }
+  .ic { width:16px; height:16px; flex:none; }
+  .none { color:var(--muted); padding:12px; font-size:13px; }
+  .it.blocked .nm, .it.blocked .ic { opacity:.4; }
+  .it.blocked { cursor:default; }
+
+  /* ---------- code pane ---------- */
+  #main { display:flex; flex-direction:column; min-width:0; min-height:0; position:relative; }
+  #head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px;
+          border-bottom:1px solid var(--line); background:var(--bg2); }
+  #crumb { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #crumb a { color:var(--accent); }
+  #crumb b { font-weight:600; }
+  #crumb .sep { color:var(--muted); margin:0 5px; }
+  #info { color:var(--muted); font-size:12px; white-space:nowrap; }
+  #code { flex:1; overflow-x:hidden; overflow-y:auto; min-height:0; padding:6px 0 64px;
+          font:12.5px/20px ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; }
+  /* Long lines wrap instead of scrolling sideways; the line number stays beside the first wrapped row. */
+  .row { display:flex; align-items:flex-start; min-width:0; }
+  .row.sel { background:var(--sel); box-shadow: inset 2px 0 0 var(--accent); }
+  .ln { flex:none; width:64px; padding-right:14px; text-align:right; color:var(--muted); cursor:pointer;
+        user-select:none; }
+  .ln:hover { color:var(--fg); }
+  .src { flex:1; min-width:0; white-space:pre-wrap; overflow-wrap:anywhere; padding-right:24px; tab-size:4; }
+  .empty { margin:auto; color:var(--muted); text-align:center; padding:24px; }
+  .err { margin:auto; color:var(--muted); text-align:center; padding:24px; max-width:420px; }
+
+  /* ---------- selection bar ---------- */
+  #bar { position:absolute; left:50%; bottom:14px; transform:translateX(-50%); display:none; align-items:center; gap:12px;
+         background:var(--bg2); border:1px solid var(--line); border-radius:10px; padding:8px 8px 8px 14px;
+         box-shadow:0 6px 24px rgba(0,0,0,.35); white-space:nowrap; }
+  #bar.show { display:flex; }
+  #bar .txt { font-size:13px; }
+  #bar .warn { color:#f0883e; font-size:12px; }
+  button { font:inherit; cursor:pointer; border-radius:6px; border:1px solid var(--line); background:transparent; color:var(--fg);
+           padding:5px 12px; }
+  button:hover { background:var(--hover); }
+  button.go .paw { width:15px; height:15px; margin:0 7px -2px 0; }
+  button.go { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button.go:hover { filter:brightness(1.1); }
+  button:disabled { opacity:.45; cursor:not-allowed; filter:none; }
+
+  body.light { --bg:#ffffff; --bg2:#f6f8fa; --fg:#1f2328; --muted:#656d76; --line:rgba(31,35,40,.15);
+               --accent:#0969da; --sel:rgba(9,105,218,.14); --hover:rgba(31,35,40,.07); }
+  #hlcss {}
+</style>
+<style id="tok"></style>
+</head>
+<body class="dark">
+<div id="app">
+  <aside id="side">
+    <h2 id="repo"></h2>
+    <input id="q" type="text" placeholder="Go to file" autocomplete="off" spellcheck="false">
+    <div id="tree"></div>
+  </aside>
+  <section id="main">
+    <div id="head"><div id="crumb"></div><div id="info"></div></div>
+    <div id="code"></div>
+    <div id="bar"><span class="txt" id="barTxt"></span><span class="warn" id="barWarn"></span>
+      <button id="clear">Clear</button><button class="go" id="go"><svg class="paw" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><ellipse cx="12" cy="5.6" rx="2.2" ry="3.5"/><ellipse cx="5.6" cy="10" rx="1.9" ry="3.1" transform="rotate(-30 5.6 10)"/><ellipse cx="18.4" cy="10" rx="1.9" ry="3.1" transform="rotate(30 18.4 10)"/><path d="M8.3 15.6c0-2.3 1.6-3.5 3.7-3.5s3.7 1.2 3.7 3.5c0 2.9-1.5 5.4-3.7 5.4s-3.7-2.5-3.7-5.4z"/></g></svg>Dig it up</button></div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ---- Streamlit component protocol (no npm needed) ----
+const send = (type, data) => window.parent.postMessage({ isStreamlitMessage: true, type, ...data }, '*');
+const setValue = (value) => send('streamlit:setComponentValue', { value, dataType: 'json' });
+
+// Fill the window below the nav bar (the component iframe is same-origin, so the parent's size is readable).
+const frameHeight = () => {
+  try {  // window height minus wherever the iframe starts on the page, minus a bottom margin
+    const top = window.frameElement.getBoundingClientRect().top + window.parent.scrollY;
+    return Math.max(420, Math.floor(window.parent.innerHeight - top - 16));
+  } catch (e) { return 640; }
+};
+let lastHeight = 0, fitTimers = [];
+function setHeight(h) {
+  if (h !== lastHeight) { lastHeight = h; send('streamlit:setFrameHeight', { height: h }); }
+}
+// Streamlit adds its own gaps and padding around the iframe, so a computed height can leave the page
+// scrolling by a few pixels. After it settles, measure that leftover and trim it.
+function trimOverflow(h) {
+  try {
+    const main = window.parent.document.querySelector('[data-testid="stMain"]');
+    const over = main.scrollHeight - main.clientHeight;
+    if (over > 0 && h - over >= 420) { h -= over; setHeight(h); }
+    return h;
+  } catch (e) { return h; }
+}
+function fitHeight() {
+  let h = frameHeight();
+  setHeight(h);
+  fitTimers.forEach(clearTimeout);
+  fitTimers = [150, 500, 1200].map(ms => setTimeout(() => { h = trimOverflow(h); }, ms));
+}
+try { window.parent.addEventListener('resize', fitHeight); } catch (e) { /* cross-origin: keep fixed height */ }
+
+const st = {                         // UI state that must survive Streamlit reruns
+  filesKey: null, root: null, open: new Set(), query: '',
+  shownFile: null, pending: null, local: null, anchor: null, a: null, b: null, dragging: false,
+  args: null, maxLines: 80, blocked: new Set(),
+};
+const extOf = (p) => { const name = p.slice(p.lastIndexOf('/') + 1), i = name.lastIndexOf('.'); return i > 0 ? name.slice(i + 1).toLowerCase() : ''; };
+const isBlocked = (p) => st.blocked.has(extOf(p));
+const activePath = () => st.local || st.pending || st.shownFile;
+
+const FOLDER = '<svg class="ic" viewBox="0 0 16 16"><path fill="#54aeff" d="M1.5 3.5A1 1 0 0 1 2.5 2.5h3.2c.3 0 .6.1.8.3L7.6 4h5.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg>';
+const FILE = '<svg class="ic" viewBox="0 0 16 16"><path fill="none" stroke="#8b949e" stroke-width="1.2" d="M3.5 1.6h5.6l3.4 3.4v9.4h-9z M9 1.8v3.4h3.4"/></svg>';
+const CHEV = '<svg class="chev__C" viewBox="0 0 16 16"><path fill="currentColor" d="M6 3.5 10.5 8 6 12.5z"/></svg>';
+
+function applyTheme(t) {
+  const dark = t ? (t.base ? t.base === 'dark' : true) : matchMedia('(prefers-color-scheme: dark)').matches;
+  document.body.className = dark ? 'dark' : 'light';
+  if (t && t.backgroundColor) {
+    const r = document.documentElement.style;
+    r.setProperty('--bg', t.backgroundColor);
+    if (t.secondaryBackgroundColor) r.setProperty('--bg2', t.secondaryBackgroundColor);
+    if (t.textColor) r.setProperty('--fg', t.textColor);
+    if (t.primaryColor) r.setProperty('--accent', t.primaryColor);
+  }
+}
+
+// ---------------------------------------------------------------- tree
+function buildTree(paths) {
+  const root = { dirs: {}, files: [] };
+  for (const p of paths) {
+    const parts = p.split('/');
+    let n = root;
+    for (let i = 0; i < parts.length - 1; i++) n = (n.dirs[parts[i]] ||= { dirs: {}, files: [] });
+    n.files.push({ name: parts[parts.length - 1], path: p });
+  }
+  return root;
+}
+const byName = (x, y) => x.toLowerCase() < y.toLowerCase() ? -1 : 1;
+
+function treeHtml(node, prefix, depth, out) {
+  for (const name of Object.keys(node.dirs).sort(byName)) {
+    const path = prefix + name, open = st.open.has(path);
+    out.push(`<div class="it" data-dir="${esc(path)}" style="padding-left:${6 + depth * 14}px">` +
+      CHEV.replace('chev__C', 'chev' + (open ? ' open' : '')) + FOLDER + `<span class="nm">${esc(name)}</span></div>`);
+    if (open) treeHtml(node.dirs[name], path + '/', depth + 1, out);
+  }
+  for (const f of node.files.sort((a, b) => byName(a.name, b.name))) {
+    const active = (f.path === activePath() ? ' active' : '') + (isBlocked(f.path) ? ' blocked' : '');
+    out.push(`<div class="it${active}" data-file="${esc(f.path)}" style="padding-left:${6 + depth * 14 + 20}px">` +
+      FILE + `<span class="nm">${esc(f.name)}</span></div>`);
+  }
+}
+
+function renderTree() {
+  const tree = $('tree');
+  const q = st.query.trim().toLowerCase();
+  const out = [];
+  if (q) {
+    const hits = st.args.files.filter(p => p.toLowerCase().includes(q)).slice(0, 200);
+    if (!hits.length) out.push('<div class="none">No matching files</div>');
+    for (const p of hits) {
+      const i = p.lastIndexOf('/'), nm = p.slice(i + 1), dir = i >= 0 ? p.slice(0, i) : '';
+      const active = (p === activePath() ? ' active' : '') + (isBlocked(p) ? ' blocked' : '');
+      out.push(`<div class="it${active}" data-file="${esc(p)}" style="padding-left:8px">${FILE}` +
+        `<span class="nm">${esc(nm)}</span><span class="sub">${esc(dir)}</span></div>`);
+    }
+  } else {
+    treeHtml(st.root, '', 0, out);
+  }
+  const top = tree.scrollTop;
+  tree.innerHTML = out.join('');
+  tree.scrollTop = top;
+}
+
+function openAncestors(path) {
+  const parts = path.split('/'); let p = '';
+  for (let i = 0; i < parts.length - 1; i++) { p += (i ? '/' : '') + parts[i]; st.open.add(p); }
+}
+
+$('tree').addEventListener('click', (e) => {
+  const it = e.target.closest('.it'); if (!it) return;
+  if (it.dataset.dir !== undefined) {
+    const d = it.dataset.dir;
+    st.open.has(d) ? st.open.delete(d) : st.open.add(d);
+    renderTree();
+  } else if (it.dataset.file !== undefined) {
+    const p = it.dataset.file;
+    if (isBlocked(p)) {                    // media/binary: explained locally, Python is never asked, nothing is downloaded
+      st.local = p; st.a = st.b = null;
+      renderTree(); renderCode();
+      return;
+    }
+    st.local = null;
+    if (p === st.shownFile) { renderTree(); renderCode(); return; }
+    st.pending = p;
+    renderTree(); renderCode();
+    setValue({ file: p });
+  }
+});
+$('q').addEventListener('input', (e) => { st.query = e.target.value; renderTree(); });
+
+// ---------------------------------------------------------------- code
+function renderCrumb(path) {
+  const parts = path ? path.split('/') : [];
+  const html = [`<b>${esc(st.args.repo_name)}</b>`].concat(
+    parts.map((p, i) => i === parts.length - 1 ? `<b>${esc(p)}</b>` : esc(p)));
+  $('crumb').innerHTML = html.join('<span class="sep">/</span>');
+}
+
+function renderCode() {
+  const a = st.args, box = $('code');
+  if (st.local) {
+    renderCrumb(st.local); $('info').textContent = '';
+    box.innerHTML = `<div class="err">${esc(a.blocked_message)}</div>`; hideBar(); return;
+  }
+  const waiting = st.pending && st.pending !== a.current;
+  renderCrumb(st.pending || a.current);
+  $('info').textContent = waiting ? '' : (a.info || '');
+  if (waiting) { box.innerHTML = '<div class="empty">Loading…</div>'; hideBar(); return; }
+  if (!a.current) { box.innerHTML = '<div class="empty">Select a file from the tree.<br>Then click a line number, or shift-click a second one to select a section.</div>'; hideBar(); return; }
+  if (a.error) { box.innerHTML = `<div class="err">${esc(a.error)}</div>`; hideBar(); return; }
+  const rows = new Array(a.lines.length);
+  for (let i = 0; i < a.lines.length; i++)
+    rows[i] = `<div class="row" data-n="${i + 1}"><span class="ln" data-n="${i + 1}">${i + 1}</span><span class="src hl">${a.lines[i] || ' '}</span></div>`;
+  box.innerHTML = rows.join('');
+  paintSelection();
+}
+
+// ---------------------------------------------------------------- line selection
+function range() { return st.a == null ? null : [Math.min(st.a, st.b), Math.max(st.a, st.b)]; }
+function paintSelection() {
+  const r = range(), rows = $('code').children;
+  for (let i = 0; i < rows.length; i++) rows[i].classList.toggle('sel', !!r && i + 1 >= r[0] && i + 1 <= r[1]);
+  updateBar();
+}
+function hideBar() { $('bar').classList.remove('show'); }
+function updateBar() {
+  const r = range(); if (!r || !st.args.current || st.args.error) return hideBar();
+  const n = r[1] - r[0] + 1, tooBig = n > st.maxLines;
+  $('barTxt').textContent = n === 1 ? `Line ${r[0]}` : `Lines ${r[0]}–${r[1]} (${n})`;
+  $('barWarn').textContent = tooBig ? `max ${st.maxLines} lines` : '';
+  $('go').disabled = tooBig;
+  $('bar').classList.add('show');
+}
+const lineOf = (e) => { const t = e.target.closest('.ln'); return t ? +t.dataset.n : null; };
+
+$('code').addEventListener('mousedown', (e) => {
+  const n = lineOf(e); if (!n) return;
+  e.preventDefault();
+  if (e.shiftKey && st.a != null) { st.b = n; }
+  else if (st.a === n && st.b === n) { st.a = st.b = null; }
+  else { st.a = st.b = n; st.dragging = true; }
+  paintSelection();
+});
+$('code').addEventListener('mouseover', (e) => {
+  if (!st.dragging) return;
+  const row = e.target.closest('.row'); if (!row) return;
+  st.b = +row.dataset.n; paintSelection();
+});
+window.addEventListener('mouseup', () => { st.dragging = false; });
+$('clear').addEventListener('click', () => { st.a = st.b = null; paintSelection(); });
+$('go').addEventListener('click', () => {
+  const r = range(); if (!r) return;
+  setValue({ file: st.args.current, start: r[0], end: r[1], nonce: Date.now() });
+});
+
+// ---------------------------------------------------------------- render from Streamlit
+function render(args, theme) {
+  applyTheme(theme);
+  st.args = args; st.maxLines = args.max_lines || 80;
+  st.blocked = new Set(args.blocked_exts || []);
+  $('tok').textContent = args.token_css || '';
+  $('repo').textContent = args.repo_name;
+
+  const key = args.files.length + ':' + (args.files[0] || '') + ':' + (args.files[args.files.length - 1] || '');
+  if (key !== st.filesKey) { st.filesKey = key; st.root = buildTree(args.files); st.open = new Set(); }
+
+  if (args.current !== st.shownFile) {            // a different file arrived: reset selection, reveal it in the tree
+    st.shownFile = args.current; st.a = st.b = null;
+    if (args.current) openAncestors(args.current);
+  }
+  if (st.pending && st.pending === args.current) st.pending = null;
+  renderTree(); renderCode();
+  fitHeight();
+}
+
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'streamlit:render') render(e.data.args, e.data.theme);
+});
+send('streamlit:componentReady', { apiVersion: 1 });
+fitHeight();
+</script>
+</body>
+</html>

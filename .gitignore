@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Gitosaurus keeps its temporary repository copies here
+.cache/
+
+# The test suite stays local and is not published
+tests/
+
+# Local configuration and secrets
+.env
+.env.*
+*.log
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

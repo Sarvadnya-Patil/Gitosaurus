@@ -1,0 +1,10 @@
+[theme]
+# Halloween: pumpkin-orange accent on a near-black purple, with light lavender text.
+base = "dark"
+primaryColor = "#ff7518"
+backgroundColor = "#140b1f"
+secondaryBackgroundColor = "#1f1230"
+textColor = "#f4ecff"
+
+[browser]
+gatherUsageStats = false
