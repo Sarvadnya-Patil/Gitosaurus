@@ -1,2 +1,2 @@
 streamlit>=1.66
-pygments>=2.14
+pygments>=2.21.0
